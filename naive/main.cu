@@ -21,11 +21,29 @@ __global__ void sgemm(const float *a, const float *b, float *c, int K, int M, in
     
 }
 
+// matrix initialization
+void matrix_init(float *a, float *b, float *c, int K, int M, int N) {
+    for (int i = 0; i < M * K; i++) {
+        a[i] = (float)(rand() % 100) / 10.0f;
+    }
+    
+    for (int i = 0; i < K * N; i++) {
+        b[i] = (float)(rand() % 100) / 10.0f;
+    }
+
+    for (int i = 0; i < M * N; i++) {
+        c[i] = 0.0f;
+    }
+
+}
+
 int main() {
+    // matrix dimensions
     int K = 4096;
     int M = 4096;
     int N = 4096;
 
+    // sgemm scaling values
     float beta = 0.9f;
     float alpha = 1.0f;
 
@@ -42,17 +60,7 @@ int main() {
     h_c = (float*)malloc(c_bytes);
 
     // matrix initialization
-    for (int i = 0; i < M * K; i++) {
-        h_a[i] = (float)(rand() % 100) / 10.0f;
-    }
-    
-    for (int i = 0; i < K * N; i++) {
-        h_b[i] = (float)(rand() % 100) / 10.0f;
-    }
-
-    for (int i = 0; i < M * N; i++) {
-        h_c[i] = 0.0f;
-    }
+    matrix_init(h_a, h_b, h_c, K, M, N);
 
     // device memory allocation (GPU)
     float *d_a, *d_b, *d_c;
@@ -90,6 +98,7 @@ int main() {
     cudaEventElapsedTime(&ms, start, stop);
 
     std::cout << "Computed value at C[0][0]: " << h_c[0] << std::endl;
+    std::cout << "Computed value at C[1024][1024]: " << h_c[1024 * 4096 + 1024] << std::endl;
     std::cout << "Kernel Execution Time: " << ms << " ms" << std::endl;
 
     // Clean up timer memory
