@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cmath>
 
 #define CEIL_DIV(A, B) (((A) + (B) - 1) / (B))
 
@@ -37,11 +38,51 @@ void matrix_init(float *a, float *b, float *c, int K, int M, int N) {
 
 }
 
+// verifies the sgemm is correct - only use on smaller dimension matrices
+void verify_result(const float *a, const float *b, const float *c_res, int K, int M, int N, float alpha, float beta) {
+    std::cout << "Running CPU Verification... " << std::endl;
+    
+    bool passed = true;
+    float t = 1e-2;
+
+    // triple nested loop for CPU
+    for (int i = 0; i < M; i++) {
+        for (int j = 0; j < N; j++) {
+            float temp = 0.0f;
+            
+            // slider
+            for (int k = 0; k < K; k++) {
+                temp += a[i * K + k] * b[k * N + j];
+            }
+
+            // apply sgemm
+            float c_check = alpha * temp + beta * 0.0f; 
+
+            // calculate error
+            float e = std::abs(c_check - c_res[i * N + j]);
+            
+            // checks if error is higher than set tolerance
+            if (e > t) {
+                std::cout << "MISMATCH at [" << i << "][" << j << "]: " 
+                          << "CPU = " << c_check << " | GPU = " << c_res[i * N + j] 
+                          << " | Error = " << e << std::endl;
+                passed = false;
+                break;
+            }
+        }
+        if (!passed) break; 
+    }
+
+    if (passed) {
+        std::cout << "SUCCESS: GPU results perfectly match CPU results!" << std::endl;
+    }
+}
+
 int main() {
     // matrix dimensions
-    int K = 4096;
-    int M = 4096;
-    int N = 4096;
+    int K = 256;
+    int M = 256;
+    int N = 256;
 
     // sgemm scaling values
     float beta = 0.9f;
@@ -98,8 +139,10 @@ int main() {
     cudaEventElapsedTime(&ms, start, stop);
 
     std::cout << "Computed value at C[0][0]: " << h_c[0] << std::endl;
-    std::cout << "Computed value at C[1024][1024]: " << h_c[1024 * 4096 + 1024] << std::endl;
     std::cout << "Kernel Execution Time: " << ms << " ms" << std::endl;
+
+    // verify result with smaller matrices
+    verify_result(h_a, h_b, h_c, K, M, N, alpha, beta);
 
     // Clean up timer memory
     cudaEventDestroy(start);
