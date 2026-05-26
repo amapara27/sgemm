@@ -20,24 +20,31 @@ __global__ void tiled_sgemm(const float *a, const float *b, float *c, int K, int
     int col = bx * tile_size + tx;
 
     // intermediate sum for element
-    int temp_val = 0.0f;
+    float temp = 0.0;
 
-    // conditional prevents extra thread usage outside of matrix dimensions
-    if (row < M && col < N) {
-        float temp = 0.0;
+    int num_tiles = (K + tile_size - 1) / tile_size;
 
-        for (int i = 0; i < (K / tile_size); i++) {
-            // row invariant: row * n indexes row, i * tile_size indexes the set of columns, + tx indexes the exact column
-            A[(ty * tile_size) + tx] = a[row * tile_size + (i * tile_size + tx)];
+    for (int i = 0; i < num_tiles; i++) {
+        // row invariant: row * K indexes row, i * tile_size indexes the subset of columns, + tx indexes the exact column
+        A[(ty * tile_size) + tx] = a[row * K + (i * tile_size) + tx];
 
-            // column invariant: i * tile_size * K indexes set of rows, ty * n indexes the exact row, col indexes our global col
-            B[(ty * tile_size) + tx] = b[(i * tile_size * K + ty * n) + col];
+        // column invariant: i * tile_size * K indexes subset of rows, ty * n indexes the exact row, col indexes our global col
+        B[(ty * tile_size) + tx] = b[(i * tile_size * N + ty * N) + col];
+
+        // ensures every single thread within block has loaded data before moving on
+        __syncthreads();
+
+        // iterates through every element within tile and calculates temp val
+        for (int j = 0; j < tile_size; j++) {
+            temp += A[(ty * tile_size) + j] * B[(j * tile_size) + tx];
         }
 
-        // sgemm formula C = α * (A @ B) + β * C - accumulates change with weights, used for gradient descent
-        c[x * N + y] = alpha * temp + beta * c[x * N + y];
+        // ensures every single thread within block has computed vals before moving on
+        __syncthreads();
     }
-    
+
+    // sgemm formula C = α * (A @ B) + β * C - accumulates change with weights, used for gradient descent
+    c[row * N + col] = alpha * temp + beta * c[row * N + col];
 }
 
 // matrix initialization
@@ -141,8 +148,8 @@ int main() {
     cudaEventCreate(&stop);
 
     // grid and block dimensions
-    dim3 gridDim(CEIL_DIV(M, 32), CEIL_DIV(N, 32), 1);
-    dim3 blockDim(32, 32, 1);
+    dim3 gridDim(CEIL_DIV(N, tile_size), CEIL_DIV(M, tile_size), 1);
+    dim3 blockDim(tile_size, tile_size, 1);
     
     // launch kernel
     cudaEventRecord(start);
