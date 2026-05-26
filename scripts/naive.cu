@@ -40,46 +40,6 @@ void matrix_init(float *a, float *b, float *c, int K, int M, int N) {
 
 }
 
-// verifies the sgemm is correct - only use on smaller dimension matrices
-void verify_result(const float *a, const float *b, const float *c_res, int K, int M, int N, float alpha, float beta) {
-    std::cout << "Running CPU Verification... " << std::endl;
-    
-    bool passed = true;
-    float t = 1e-2;
-
-    // triple nested loop for CPU
-    for (int i = 0; i < M; i++) {
-        for (int j = 0; j < N; j++) {
-            float temp = 0.0f;
-            
-            // slider
-            for (int k = 0; k < K; k++) {
-                temp += a[i * K + k] * b[k * N + j];
-            }
-
-            // apply sgemm
-            float c_check = alpha * temp + beta * 0.0f; 
-
-            // calculate error
-            float e = std::abs(c_check - c_res[i * N + j]);
-            
-            // checks if error is higher than set tolerance
-            if (e > t) {
-                std::cout << "MISMATCH at [" << i << "][" << j << "]: " 
-                          << "CPU = " << c_check << " | GPU = " << c_res[i * N + j] 
-                          << " | Error = " << e << std::endl;
-                passed = false;
-                break;
-            }
-        }
-        if (!passed) break; 
-    }
-
-    if (passed) {
-        std::cout << "SUCCESS: GPU results perfectly match CPU results!" << std::endl;
-    }
-}
-
 int main() {
     // matrix dimensions
     int K = 4096;
@@ -117,38 +77,17 @@ int main() {
     cudaMemcpy(d_b, h_b, b_bytes, cudaMemcpyHostToDevice);
     cudaMemcpy(d_c, h_c, c_bytes, cudaMemcpyHostToDevice);
 
-    // timer
-    cudaEvent_t start, stop;
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
-
     // grid and block dimensions
     dim3 gridDim(CEIL_DIV(M, 32), CEIL_DIV(N, 32), 1);
     dim3 blockDim(32, 32, 1);
     
     // launch kernel
-    cudaEventRecord(start);
     sgemm<<<gridDim, blockDim>>>(d_a, d_b, d_c, K, M, N, alpha, beta);
-    cudaEventRecord(stop);
 
     cudaDeviceSynchronize();
 
     // fetch results
     cudaMemcpy(h_c, d_c, c_bytes, cudaMemcpyDeviceToHost);
-
-    // display metrics
-    float ms = 0;
-    cudaEventElapsedTime(&ms, start, stop);
-
-    std::cout << "Computed value at C[2048][2048]: " << h_c[2048 * 4096 + 2048] << std::endl;
-    std::cout << "Kernel Execution Time: " << ms << " ms" << std::endl;
-
-    // verify result with smaller matrices
-    // verify_result(h_a, h_b, h_c, K, M, N, alpha, beta);
-
-    // Clean up timer memory
-    cudaEventDestroy(start);
-    cudaEventDestroy(stop);
 
     // free memory
     free(h_a);

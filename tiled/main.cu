@@ -4,18 +4,34 @@
 #include <cmath>
 
 #define CEIL_DIV(A, B) (((A) + (B) - 1) / (B))
+#define SHMEM_SIZE 16 * 16 * 4
 
-__global__ void sgemm(const float *a, const float *b, float *c, int K, int M, int N, float alpha, float beta) {
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
+__global__ void tiled_sgemm(const float *a, const float *b, float *c, int K, int M, int N, float alpha, float beta, int tile_size) {
+    __shared__ float A[SHMEM_SIZE];
+    __shared__ float B[SHMEM_SIZE];
+    
+    int bx = blockIdx.x;
+    int by = blockIdx.y;
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+
+    // calculate thread pos
+    int row = by * tile_size + ty;
+    int col = bx * tile_size + tx;
+
+    // intermediate sum for element
+    int temp_val = 0.0f;
 
     // conditional prevents extra thread usage outside of matrix dimensions
-    if (x < M && y < N) {
+    if (row < M && col < N) {
         float temp = 0.0;
 
-        for (int i = 0; i < K; i++) {
-            // row * width + column
-            temp += a[x * K + i] * b[i * N + y];
+        for (int i = 0; i < (K / tile_size); i++) {
+            // row invariant: row * n indexes row, i * tile_size indexes the set of columns, + tx indexes the exact column
+            A[(ty * tile_size) + tx] = a[row * tile_size + (i * tile_size + tx)];
+
+            // column invariant: i * tile_size * K indexes set of rows, ty * n indexes the exact row, col indexes our global col
+            B[(ty * tile_size) + tx] = b[(i * tile_size * K + ty * n) + col];
         }
 
         // sgemm formula C = α * (A @ B) + β * C - accumulates change with weights, used for gradient descent
@@ -90,6 +106,8 @@ int main() {
     float beta = 0.9f;
     float alpha = 1.0f;
 
+    int tile_size = 16;
+
     // matrix sizes
     size_t a_bytes = M * K * sizeof(float);
     size_t b_bytes = K * N * sizeof(float);
@@ -128,7 +146,7 @@ int main() {
     
     // launch kernel
     cudaEventRecord(start);
-    sgemm<<<gridDim, blockDim>>>(d_a, d_b, d_c, K, M, N, alpha, beta);
+    tiled_sgemm<<<gridDim, blockDim>>>(d_a, d_b, d_c, K, M, N, alpha, beta, tile_size);
     cudaEventRecord(stop);
 
     cudaDeviceSynchronize();
