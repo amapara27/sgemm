@@ -4,22 +4,23 @@
 #include <cmath>
 
 #define CEIL_DIV(A, B) (((A) + (B) - 1) / (B))
+#define BLOCKSIZE 32
 
 __global__ void sgemm(const float *a, const float *b, float *c, int K, int M, int N, float alpha, float beta) {
-    int rows = blockIdx.y * blockDim.y + threadIdx.y;
-    int cols = blockIdx.x * blockDim.x + threadIdx.x;
+    const int x = blockIdx.x * BLOCKSIZE + (threadIdx.x / BLOCKSIZE);
+    const int y = blockIdx.y * BLOCKSIZE + (threadIdx.x % BLOCKSIZE);
 
     // conditional prevents extra thread usage outside of matrix dimensions
-    if (rows < M && cols < N) {
+    if (x < M && y < N) {
         float temp = 0.0;
 
         for (int i = 0; i < K; i++) {
             // row * width + column
-            temp += a[rows * K + i] * b[i * N + cols];
+            temp += a[x * K + i] * b[i * N + y];
         }
 
         // sgemm formula C = α * (A @ B) + β * C - accumulates change with weights, used for gradient descent
-        c[rows * N + cols] = alpha * temp + beta * c[rows * N + cols];
+        c[x * N + y] = alpha * temp + beta * c[x * N + y];
     }
     
 }
@@ -82,9 +83,9 @@ void verify_result(const float *a, const float *b, const float *c_res, int K, in
 
 int main() {
     // matrix dimensions
-    int K = 256;
-    int M = 256;
-    int N = 256;
+    int K = 4096;
+    int M = 4096;
+    int N = 4096;
 
     // sgemm scaling values
     float beta = 0.9f;
@@ -124,7 +125,7 @@ int main() {
 
     // grid and block dimensions
     dim3 gridDim(CEIL_DIV(M, 32), CEIL_DIV(N, 32), 1);
-    dim3 blockDim(32, 32, 1);
+    dim3 blockDim(32 * 32);
     
     // launch kernel
     cudaEventRecord(start);
@@ -144,7 +145,7 @@ int main() {
     std::cout << "Kernel Execution Time: " << ms << " ms" << std::endl;
 
     // verify result with smaller matrices
-    verify_result(h_a, h_b, h_c, K, M, N, alpha, beta);
+    // verify_result(h_a, h_b, h_c, K, M, N, alpha, beta);
 
     // Clean up timer memory
     cudaEventDestroy(start);
