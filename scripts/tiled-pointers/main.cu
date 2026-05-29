@@ -4,13 +4,13 @@
 #include <cmath>
 
 #define CEIL_DIV(A, B) (((A) + (B) - 1) / (B))
-#define SMEM_SIZE 16 * 16 * 4
 #define TILE_SIZE 32
 
-__global__ void tiled_sgemm(const float *a, const float *b, float *c, int K, int M, int N, float alpha, float beta) {
-    __shared__ float as[SMEM_SIZE];
-    __shared__ float bs[SMEM_SIZE];
-    
+__global__ void sgemm(const float *a, const float *b, float *c, int K, int M, int N, float alpha, float beta) {
+    // shared tiles
+    __shared__ float as[TILE_SIZE * TILE_SIZE];
+    __shared__ float bs[TILE_SIZE * TILE_SIZE];
+
     // thread pos
     int tCol = threadIdx.x;
     int tRow = threadIdx.y;
@@ -19,35 +19,36 @@ __global__ void tiled_sgemm(const float *a, const float *b, float *c, int K, int
     int bCol = blockIdx.x;
     int bRow = blockIdx.y;
 
-    // calculate matrix pos
-    int row = bRow * TILE_SIZE + tRow;
-    int col = bCol * TILE_SIZE + tCol;
-
-    // intermediate sum for element
-    float temp = 0.0;
+    // advance pointers to starting positions
+    // target row * amt of columns
+    a += bRow * TILE_SIZE * K;
+    // target column: always starts at row 0
+    b += bCol * TILE_SIZE;
+    // row, col
+    c += bRow * TILE_SIZE * N + bCol * TILE_SIZE;
 
     int num_tiles = (K + TILE_SIZE - 1) / TILE_SIZE;
+    float temp = 0.0;
 
     for (int i = 0; i < num_tiles; i++) {
-        // row invariant: row * K indexes row, i * tile_size indexes the subset of columns, + tx indexes the exact column
-        as[(tRow * TILE_SIZE) + tCol] = a[row * K + (i * TILE_SIZE) + tCol];
+        // load values into shared memory
+        as[tRow * TILE_SIZE + tCol] = a[tRow * K + tCol];
+        bs[tRow * TILE_SIZE + tCol] = b[tRow * N + tCol];
 
-        // column invariant: i * tile_size * K indexes subset of rows, ty * n indexes the exact row, col indexes our global col
-        bs[(tRow * TILE_SIZE) + tCol] = b[(i * TILE_SIZE * N + tRow * N) + col];
-
-        // ensures every single thread within block has loaded data before moving on
         __syncthreads();
 
-        // iterates through every element within tile and calculates temp val
         for (int j = 0; j < TILE_SIZE; j++) {
-            temp += as[(tRow * TILE_SIZE) + j] * bs[(j * TILE_SIZE) + tCol];
+            temp += as[tRow * TILE_SIZE + j] * bs[j * TILE_SIZE + tCol];
         }
 
-        // ensures every single thread within block has computed vals before moving on
         __syncthreads();
+
+        // shift pointers
+        a += TILE_SIZE;
+        b += TILE_SIZE * N;
     }
-    // sgemm formula C = α * (A @ B) + β * C - accumulates change with weights, used for gradient descent
-    c[row * N + col] = alpha * temp + beta * c[row * N + col];
+    // write
+    c[tRow * N + tCol] = alpha * temp + beta * c[tRow * N + tCol];
 }
 
 // matrix initialization
@@ -116,7 +117,6 @@ int main() {
     float beta = 0.9f;
     float alpha = 1.0f;
 
-
     // matrix sizes
     size_t a_bytes = M * K * sizeof(float);
     size_t b_bytes = K * N * sizeof(float);
@@ -150,12 +150,12 @@ int main() {
     cudaEventCreate(&stop);
 
     // grid and block dimensions
-    dim3 gridDim(CEIL_DIV(N, TILE_SIZE), CEIL_DIV(M, TILE_SIZE), 1);
-    dim3 blockDim(TILE_SIZE, TILE_SIZE, 1);
+    dim3 gridDim(CEIL_DIV(M, 32), CEIL_DIV(N, 32), 1);
+    dim3 blockDim(32, 32, 1);
     
     // launch kernel
     cudaEventRecord(start);
-    tiled_sgemm<<<gridDim, blockDim>>>(d_a, d_b, d_c, K, M, N, alpha, beta);
+    sgemm<<<gridDim, blockDim>>>(d_a, d_b, d_c, K, M, N, alpha, beta);
     cudaEventRecord(stop);
 
     cudaDeviceSynchronize();
@@ -167,7 +167,7 @@ int main() {
     float ms = 0;
     cudaEventElapsedTime(&ms, start, stop);
 
-    // std::cout << "Computed value at C[2048][2048]: " << h_c[2048 * 4096 + 2048] << std::endl;
+    std::cout << "Computed value at C[2048][2048]: " << h_c[2048 * 4096 + 2048] << std::endl;
     std::cout << "Kernel Execution Time: " << ms << " ms" << std::endl;
 
     // verify result with smaller matrices
