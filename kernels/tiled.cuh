@@ -17,8 +17,8 @@ __global__ void tiled_sgemm(const float *a, const float *b, float *c, int K, int
     int ty = threadIdx.y;
 
     // calculate thread pos
-    int row = by * TILE_SIZE + ty;
     int col = bx * TILE_SIZE + tx;
+    int row = by * TILE_SIZE + ty;
 
     // intermediate sum for element
     float temp = 0.0;

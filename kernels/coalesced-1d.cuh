@@ -4,10 +4,11 @@
 #include <cmath>
 
 #define CEIL_DIV(A, B) (((A) + (B) - 1) / (B))
+#define BLOCKSIZE 32
 
 __global__ void sgemm(const float *a, const float *b, float *c, int K, int M, int N, float alpha, float beta) {
-    int row = blockIdx.x * blockDim.x + threadIdx.x;
-    int col = blockIdx.y * blockDim.y + threadIdx.y;
+    int row = blockIdx.x * BLOCKSIZE + (threadIdx.x / BLOCKSIZE);
+    int col = blockIdx.y * BLOCKSIZE + (threadIdx.x % BLOCKSIZE);
 
     // conditional prevents extra thread usage outside of matrix dimensions
     if (row < M && col < N) {

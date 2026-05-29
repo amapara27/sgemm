@@ -6,8 +6,8 @@
 #define CEIL_DIV(A, B) (((A) + (B) - 1) / (B))
 
 __global__ void sgemm(const float *a, const float *b, float *c, int K, int M, int N, float alpha, float beta) {
-    int row = blockIdx.x * blockDim.x + threadIdx.x;
-    int col = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
 
     // conditional prevents extra thread usage outside of matrix dimensions
     if (row < M && col < N) {
