@@ -124,7 +124,7 @@ int main() {
 
     // grid and block dimensions
     dim3 gridDim(CEIL_DIV(M, 32), CEIL_DIV(N, 32), 1);
-    dim3 blockDim(32, 32, 1);
+    dim3 blockDim(32 * 32);
     
     // launch kernel
     cudaEventRecord(start);
