@@ -29,10 +29,10 @@ __global__ void tiled_sgemm(const float *a, const float *b, float *c, int K, int
     int num_tiles = (K + TILE_SIZE - 1) / TILE_SIZE;
 
     for (int i = 0; i < num_tiles; i++) {
-        // row invariant: row * K indexes row, i * tile_size indexes the subset of columns, + tx indexes the exact column
+        // row invariant: row * K indexes row, i * tile_size indexes the next column, + tcol indexes the exact column
         as[(tRow * TILE_SIZE) + tCol] = a[row * K + (i * TILE_SIZE) + tCol];
 
-        // column invariant: i * tile_size * K indexes subset of rows, ty * n indexes the exact row, col indexes our global col
+        // column invariant: i * tile_size * N indexes the next rows, trow * n indexes the exact row, col indexes our global col
         bs[(tRow * TILE_SIZE) + tCol] = b[(i * TILE_SIZE * N + tRow * N) + col];
 
         // ensures every single thread within block has loaded data before moving on
