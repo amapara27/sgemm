@@ -7,7 +7,7 @@
 #define CEIL_DIV(A, B) (((A) + (B) - 1) / (B))
 #define BLOCK_SIZE 32
 
-__global__ void sgemm_1d_wt(const float *a, const float *b, float *c, int K, int M, int N, float alpha, float beta) {
+__global__ void sgemm_1d_bt(const float *a, const float *b, float *c, int K, int M, int N, float alpha, float beta) {
     // block tile dims
     const int bk = 8; // step size along K
     const int bm = 64; // rows of C
@@ -34,8 +34,8 @@ __global__ void sgemm_1d_wt(const float *a, const float *b, float *c, int K, int
     __shared__ float bs[bk * bn];
 
     // warp level coalescing
-    int iColA = threadIdx.x % bk; // 0 - 63
-    int iRowA = threadIdx.x / bk; // 0 - 7
+    int iColA = threadIdx.x % bk; // 0 - 7
+    int iRowA = threadIdx.x / bk; // 0 - 63
     int iColB = threadIdx.x % bn; // 0 - 63
     int iRowB = threadIdx.x / bn; // 0 - 7
 
@@ -69,10 +69,10 @@ __global__ void sgemm_1d_wt(const float *a, const float *b, float *c, int K, int
         __syncthreads();
     }
     // write
-    int resCol = cCol * bn + tCol;
+    int resCol = cCol * bn + tCol; // block's col
 
     for (int r = 0; r < tm; r++) {
-        int resRow = cRow * bm + (tRow * tm) + r; // Anchor to the block's absolute row
+        int resRow = cRow * bm + (tRow * tm) + r; // block's absolute row
         
         c[resRow * N + resCol] = alpha * res[r] + beta * c[resRow * N + resCol];
     }
@@ -182,7 +182,7 @@ int main() {
     
     // launch kernel
     cudaEventRecord(start);
-    sgemm_1d_wt<<<gridDim, blockDim>>>(d_a, d_b, d_c, K, M, N, alpha, beta);
+    sgemm_1d_bt<<<gridDim, blockDim>>>(d_a, d_b, d_c, K, M, N, alpha, beta);
     cudaEventRecord(stop);
 
     cudaDeviceSynchronize();

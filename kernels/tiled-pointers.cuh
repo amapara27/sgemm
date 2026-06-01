@@ -6,7 +6,7 @@
 #define CEIL_DIV(A, B) (((A) + (B) - 1) / (B))
 #define TILE_SIZE 32
 
-__global__ void sgemm(const float *a, const float *b, float *c, int K, int M, int N, float alpha, float beta) {
+__global__ void tiled_pointers_sgemm(const float *a, const float *b, float *c, int K, int M, int N, float alpha, float beta) {
     // shared tiles
     __shared__ float as[TILE_SIZE * TILE_SIZE];
     __shared__ float bs[TILE_SIZE * TILE_SIZE];
