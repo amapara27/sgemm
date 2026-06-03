@@ -225,10 +225,10 @@ int main() {
     cudaEventElapsedTime(&ms, start, stop);
 
     // std::cout << "Computed value at C[2048][2048]: " << h_c[2048 * 4096 + 2048] << std::endl;
-    std::cout << "Kernel Execution Time: " << ms << " ms" << std::endl;
+    // std::cout << "Kernel Execution Time: " << ms << " ms" << std::endl;
 
     // verify result with smaller matrices
-    // verify_result(h_a, h_b, h_c, K, M, N, alpha, beta);
+    verify_result(h_a, h_b, h_c, K, M, N, alpha, beta);
 
     // Clean up timer memory
     cudaEventDestroy(start);
