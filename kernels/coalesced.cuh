@@ -5,7 +5,7 @@
 
 #define CEIL_DIV(A, B) (((A) + (B) - 1) / (B))
 
-__global__ void coalesced_sgemm(const float *a, const float *b, float *c, int K, int M, int N, float alpha, float beta) {
+__global__ void sgemm_coalesced(const float *a, const float *b, float *c, int K, int M, int N, float alpha, float beta) {
     int col = blockIdx.x * blockDim.x + threadIdx.x;
     int row = blockIdx.y * blockDim.y + threadIdx.y;
 

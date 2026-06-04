@@ -1,7 +1,15 @@
 #include <iostream>
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
+
+#include "../../kernels/vectorized.cuh" 
 #include "../../kernels/blocktiled-2d.cuh" 
+#include "../../kernels/blocktiled-1d.cuh" 
+#include "../../kernels/tiled.cuh" 
+#include "../../kernels/coalesced.cuh" 
+#include "../../kernels/naive.cuh" 
+
+#define CEIL_DIV(A, B) (((A) + (B) - 1) / (B))
 
 using namespace std;
 
@@ -72,12 +80,12 @@ int M = SIZE, N = SIZE, K = SIZE;
     cublasCreate(&handle);
 
     // test custom kernel
-    dim3 gridDim((N + 127) / 128, (M + 127) / 128); 
+    dim3 gridDim(CEIL_DIV(M, 128), CEIL_DIV(N, 128), 1);
     dim3 blockDim(256);
 
     // warmup
     for (int i = 0; i < 10; i++) {
-        sgemm_2d_bt<<<gridDim, blockDim>>>(d_a, d_b, d_c, K, M, N, alpha, beta);
+        sgemm_vectorized<<<gridDim, blockDim>>>(d_a, d_b, d_c, K, M, N, alpha, beta);
     }
 
     cudaDeviceSynchronize();
@@ -85,7 +93,7 @@ int M = SIZE, N = SIZE, K = SIZE;
     // benchmark
     cudaEventRecord(start);
     for (int i = 0; i < repeat; i++) {
-        sgemm_2d_bt<<<gridDim, blockDim>>>(d_a, d_b, d_c, K, M, N, alpha, beta);
+        sgemm_vectorized<<<gridDim, blockDim>>>(d_a, d_b, d_c, K, M, N, alpha, beta);
     }
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);

@@ -7,7 +7,7 @@
 #define SMEM_SIZE 16 * 16 * 4
 #define TILE_SIZE 32
 
-__global__ void tiled_sgemm(const float *a, const float *b, float *c, int K, int M, int N, float alpha, float beta) {
+__global__ void sgemm_tiled(const float *a, const float *b, float *c, int K, int M, int N, float alpha, float beta) {
     __shared__ float as[SMEM_SIZE];
     __shared__ float bs[SMEM_SIZE];
     
