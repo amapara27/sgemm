@@ -12,7 +12,7 @@ __global__ void sgemm_vectorized(float *a, float *b, float *c, int K, int M, int
     const int bn = 128;
     const int bk = 8; // 128 x 8 tile for a, 8 x 128 tile for b
 
-    // each thread calculates tm * tn elements
+    // thread tile dims - each thread calculates tm * tn elements
     const int tm = 8;
     const int tn = 8;
 
