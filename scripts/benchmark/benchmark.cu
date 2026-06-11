@@ -81,12 +81,12 @@ int M = SIZE, N = SIZE, K = SIZE;
     cublasCreate(&handle);
 
     // test custom kernel
-    dim3 gridDim(CEIL_DIV(N, 128), CEIL_DIV(M, 64), 1);
-    dim3 blockDim(128);
+    dim3 gridDim(CEIL_DIV(N, 128), CEIL_DIV(M, 128), 1);
+    dim3 blockDim(256);
 
     // warmup
     for (int i = 0; i < 10; i++) {
-        sgemm_warptiled<<<gridDim, blockDim>>>(d_a, d_b, d_c, K, M, N, alpha, beta);
+        sgemm_vectorized<<<gridDim, blockDim>>>(d_a, d_b, d_c, K, M, N, alpha, beta);
     }
 
     cudaDeviceSynchronize();
@@ -94,7 +94,7 @@ int M = SIZE, N = SIZE, K = SIZE;
     // benchmark
     cudaEventRecord(start);
     for (int i = 0; i < repeat; i++) {
-        sgemm_warptiled<<<gridDim, blockDim>>>(d_a, d_b, d_c, K, M, N, alpha, beta);
+        sgemm_vectorized<<<gridDim, blockDim>>>(d_a, d_b, d_c, K, M, N, alpha, beta);
     }
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
