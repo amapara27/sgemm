@@ -4,7 +4,7 @@
 #include <cmath>
 
 #define CEIL_DIV(A, B) (((A) + (B) - 1) / (B))
-#define SMEM_SIZE 16 * 16 * 4
+#define SMEM_SIZE 32 * 32
 #define TILE_SIZE 32
 
 __global__ void sgemm_tiled(const float *a, const float *b, float *c, int K, int M, int N, float alpha, float beta) {

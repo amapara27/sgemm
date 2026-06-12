@@ -48,8 +48,6 @@ __global__ void sgemm_vectorized(float *a, float *b, float *c, int K, int M, int
     // number of cols of b that block loads in - block jumps this value
     int strideB = threadsPerBT / (bn / 4); // 8 row jumps - 1 pass
 
-    // stride vars aren't needed. keeping for understanding
-
     // matrix element pos
     int aRow = cRow * bm + iRowA; // block row * block dim + inner row
     int bCol = cCol * bn + (iColB * 4); // different because of vectorization (horizontal width is less than previous kernel)
